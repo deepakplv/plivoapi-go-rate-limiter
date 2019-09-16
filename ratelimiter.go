@@ -2,7 +2,6 @@ package ratelimiter
 
 import (
     "github.com/labstack/echo"
-    "github.com/labstack/echo/middleware"
     "net/http"
 )
 
