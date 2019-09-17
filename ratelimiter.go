@@ -3,6 +3,7 @@
 package ratelimiter
 
 import (
+    "github.com/go-redis/redis"
     "github.com/labstack/echo"
     "net/http"
 )
@@ -14,7 +15,7 @@ type RateLimitResponse struct {
 }
 
 type RateLimiter interface {
-    apply()                                                             echo.MiddlewareFunc
+    apply()                                     echo.MiddlewareFunc
     hasLimitExceeded(string)                    bool
 }
 
@@ -22,8 +23,8 @@ type RateLimiter interface {
 type AbstractRateLimiter struct {
     windowSize                  int
     maxRequest                  int
-    redisConnection     redis.Cmdable
-    useIP                               bool
+    redisConnection             redis.Cmdable
+    useIP                       bool
     RateLimiter
 }
 
