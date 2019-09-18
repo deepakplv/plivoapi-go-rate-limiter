@@ -7,5 +7,6 @@ dep ensure -v -add  github.com/deepakplv/plivoapi-go-rate-limiter
 And then use middlewares in router over the API(s) which need to be rate limited:
 ```go
 import "github.com/deepakplv/plivoapi-go-rate-limiter"
-router.GET("/some_url", controllers.SomeController, ratelimiter.FixedWindowRateLimiterMiddleware(60, 10, clients.GetCache(), false))
+var cache = redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379", DB: 3})
+router.GET("/some_url", controllers.SomeController, ratelimiter.FixedWindowRateLimiterMiddleware(60, 10, cache, false))
 ```
