@@ -21,18 +21,19 @@ type RateLimiter interface {
 
 // All rate-limiter implmentations need to derive from this base struct
 type AbstractRateLimiter struct {
-    windowSize                  int
-    maxRequest                  int
-    redisConnection             redis.Cmdable
-    useIP                       bool
+    windowSize                  int                 // In seconds
+    maxRequest                  int                 // Count of allowed requests in the window
+    redisConnection             redis.Cmdable       // Redis connection(clustered or non-clustered)
+    useIP                       bool                // Also use IPAddress for rate-limiting
     RateLimiter
 }
 
-// Check if limit has exceeded or not, and return rate-limiting response accordingly. Specific rate-limiting 
-// implmentations need to define the logic for `hasLimitExceeded`
+// Check if limit has exceeded or not, and return rate-limiting response accordingly. 
+// Specific rate-limiting implementations need to define the logic for `hasLimitExceeded()`
 func (rateLimiter AbstractRateLimiter) apply() echo.MiddlewareFunc {
     return func(next echo.HandlerFunc) echo.HandlerFunc {
         return func(c echo.Context) error {
+            // c.Path() contains the relative URL of the API(without queryparams) which also contains the AUTHID
             key := c.Path()
             if rateLimiter.useIP {
                 ip := c.RealIP()
@@ -46,14 +47,17 @@ func (rateLimiter AbstractRateLimiter) apply() echo.MiddlewareFunc {
     }
 }
 
-// Fixed Window rate limiting implementation
+// Fixed Window rate limiting implementation: This rate limiter blocks request if the number of requests exceeds 
+// the allowed requests in the defined time-window till the window resets.
 type FixedWindowRateLimiter struct {
     AbstractRateLimiter
 }
 
 func (fwLimiter FixedWindowRateLimiter) hasLimitExceeded(key string) bool {
     key = "FWLimiter:" + key
-    incrementScript := `
+    // To avoid race condition, using a lua script to increment key and set ttl(only first time).
+    // This is documented here: https://redis.io/commands/incr#pattern-rate-limiter-2
+    luaScript := `
         local current
         current = redis.call("incr",KEYS[1])
         if tonumber(current) == 1 then
@@ -61,7 +65,7 @@ func (fwLimiter FixedWindowRateLimiter) hasLimitExceeded(key string) bool {
         end
         return current
     `
-    cmd := fwLimiter.redisConnection.Eval(incrementScript, []string{key}, fwLimiter.windowSize)
+    cmd := fwLimiter.redisConnection.Eval(luaScript, []string{key}, fwLimiter.windowSize)
     count, err := cmd.Int()
     if err != nil {
         return false
